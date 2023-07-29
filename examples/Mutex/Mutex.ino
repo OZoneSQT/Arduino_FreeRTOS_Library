@@ -49,7 +49,7 @@ void loop() {}
 
 void TaskMutex(void *pvParameters)
 {
-  int delay = *((int*)pvParameters); // Use task parameters to define delay
+  TickType_t delayTime = *((TickType_t*)pvParameters); // Use task parameters to define delay
 
   for (;;)
   {
@@ -60,7 +60,7 @@ void TaskMutex(void *pvParameters)
     if (xSemaphoreTake(mutex, 10) == pdTRUE)
     {
       Serial.print(pcTaskGetName(NULL)); // Get task name
-      Serial.print(", Count readed value: ");
+      Serial.print(", Count read value: ");
       Serial.print(globalCount);
 
       globalCount++;
@@ -76,6 +76,6 @@ void TaskMutex(void *pvParameters)
       xSemaphoreGive(mutex);
     }
 
-    vTaskDelay(delay / portTICK_PERIOD_MS);
+    vTaskDelay(delayTime / portTICK_PERIOD_MS);
   }
 }

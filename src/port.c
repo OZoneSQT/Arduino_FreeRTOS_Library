@@ -1,6 +1,8 @@
 /*
- * FreeRTOS Kernel V10.3.0
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS Kernel V10.5.1+
+ * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ *
+ * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -19,10 +21,9 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
- * http://www.FreeRTOS.org
- * http://aws.amazon.com/freertos
+ * https://www.FreeRTOS.org
+ * https://github.com/FreeRTOS
  *
- * 1 tab == 4 spaces!
  */
 
 
@@ -43,7 +44,12 @@
 /* Start tasks with interrupts enabled. */
 #define portFLAGS_INT_ENABLED           ( (StackType_t) 0x80 )
 
-#define    portSCHEDULER_ISR            WDT_vect
+#if defined( portUSE_WDTO )
+    #define portSCHEDULER_ISR           WDT_vect
+
+#else
+    #warning "The user must define a Timer to be used for the Scheduler."
+#endif
 
 /*-----------------------------------------------------------*/
 
@@ -54,11 +60,145 @@ extern volatile TCB_t * volatile pxCurrentTCB;
 
 /*-----------------------------------------------------------*/
 
+/**
+    Enable the watchdog timer, configuring it for expire after
+    (value) timeout (which is a combination of the WDP0
+    through WDP3 bits).
+
+    This function is derived from <avr/wdt.h> but enables only
+    the interrupt bit (WDIE), rather than the reset bit (WDE).
+
+    Can't find it documented but the WDT, once enabled,
+    rolls over and fires a new interrupt each time.
+
+    See also the symbolic constants WDTO_15MS et al.
+
+    Updated to match avr-libc 2.0.0
+*/
+
+#if defined( portUSE_WDTO )
+
+static __inline__
+__attribute__ ((__always_inline__))
+void wdt_interrupt_enable (const uint8_t value)
+{
+    if (_SFR_IO_REG_P (_WD_CONTROL_REG))
+    {
+        __asm__ __volatile__ (
+                "in __tmp_reg__,__SREG__"   "\n\t"
+                "cli"                       "\n\t"
+                "wdr"                       "\n\t"
+                "out %0, %1"                "\n\t"
+                "out __SREG__,__tmp_reg__"  "\n\t"
+                "out %0, %2"                "\n\t"
+                : /* no outputs */
+                : "I" (_SFR_IO_ADDR(_WD_CONTROL_REG)),
+                "r" ((uint8_t)(_BV(_WD_CHANGE_BIT) | _BV(WDE))),
+                "r" ((uint8_t) ((value & 0x08 ? _WD_PS3_MASK : 0x00) |
+                        _BV(WDIF) | _BV(WDIE) | (value & 0x07)) )
+                : "r0"
+        );
+    }
+    else
+    {
+        __asm__ __volatile__ (
+                "in __tmp_reg__,__SREG__"   "\n\t"
+                "cli"                       "\n\t"
+                "wdr"                       "\n\t"
+                "sts %0, %1"                "\n\t"
+                "out __SREG__,__tmp_reg__"  "\n\t"
+                "sts %0, %2"                "\n\t"
+                : /* no outputs */
+                : "n" (_SFR_MEM_ADDR(_WD_CONTROL_REG)),
+                "r" ((uint8_t)(_BV(_WD_CHANGE_BIT) | _BV(WDE))),
+                "r" ((uint8_t) ((value & 0x08 ? _WD_PS3_MASK : 0x00) |
+                        _BV(WDIF) | _BV(WDIE) | (value & 0x07)) )
+                : "r0"
+        );
+    }
+}
+#endif
+
+/*-----------------------------------------------------------*/
+/**
+    Enable the watchdog timer, configuring it for expire after
+    (value) timeout (which is a combination of the WDP0
+    through WDP3 bits).
+
+    This function is derived from <avr/wdt.h> but enables both
+    the reset bit (WDE), and the interrupt bit (WDIE).
+
+    This will ensure that if the interrupt is not serviced
+    before the second timeout, the AVR will reset.
+
+    Servicing the interrupt automatically clears it,
+    and ensures the AVR does not reset.
+
+    Can't find it documented but the WDT, once enabled,
+    rolls over and fires a new interrupt each time.
+
+    See also the symbolic constants WDTO_15MS et al.
+
+    Updated to match avr-libc 2.0.0
+*/
+
+#if defined( portUSE_WDTO )
+
+static __inline__
+__attribute__ ((__always_inline__))
+void wdt_interrupt_reset_enable (const uint8_t value)
+{
+    if (_SFR_IO_REG_P (_WD_CONTROL_REG))
+    {
+        __asm__ __volatile__ (
+                "in __tmp_reg__,__SREG__"   "\n\t"
+                "cli"                       "\n\t"
+                "wdr"                       "\n\t"
+                "out %0, %1"                "\n\t"
+                "out __SREG__,__tmp_reg__"  "\n\t"
+                "out %0, %2"                "\n\t"
+                : /* no outputs */
+                : "I" (_SFR_IO_ADDR(_WD_CONTROL_REG)),
+                "r" ((uint8_t)(_BV(_WD_CHANGE_BIT) | _BV(WDE))),
+                "r" ((uint8_t) ((value & 0x08 ? _WD_PS3_MASK : 0x00) |
+                        _BV(WDIF) | _BV(WDIE) | _BV(WDE) | (value & 0x07)) )
+                : "r0"
+        );
+    }
+    else
+    {
+        __asm__ __volatile__ (
+                "in __tmp_reg__,__SREG__"   "\n\t"
+                "cli"                       "\n\t"
+                "wdr"                       "\n\t"
+                "sts %0, %1"                "\n\t"
+                "out __SREG__,__tmp_reg__"  "\n\t"
+                "sts %0, %2"                "\n\t"
+                : /* no outputs */
+                : "n" (_SFR_MEM_ADDR(_WD_CONTROL_REG)),
+                "r" ((uint8_t)(_BV(_WD_CHANGE_BIT) | _BV(WDE))),
+                "r" ((uint8_t) ((value & 0x08 ? _WD_PS3_MASK : 0x00) |
+                        _BV(WDIF) | _BV(WDIE) | _BV(WDE) | (value & 0x07)) )
+                : "r0"
+        );
+    }
+}
+#endif
+
+/*-----------------------------------------------------------*/
+/* actual number of ticks per second, after configuration. Not for RTC, which has 1 tick/second. */
+TickType_t portTickRateHz;
+
+/* remaining ticks in each second, decremented to enable the system_tick. Not for RTC, which has 1 tick/second. */
+volatile TickType_t ticksRemainingInSec;
+
+/*-----------------------------------------------------------*/
+
 /*
  * Macro to save all the general purpose registers, the save the stack pointer
  * into the TCB.
  *
- * The first thing we do is save the flags then disable interrupts.  This is to
+ * The first thing we do is save the flags then disable interrupts. This is to
  * guard our stack against having a context switch interrupt after we have already
  * pushed the registers onto the stack - causing the 32 registers to be on the
  * stack twice.
@@ -73,7 +213,7 @@ extern volatile TCB_t * volatile pxCurrentTCB;
  * #endif
  *
  * #if defined(__AVR_3_BYTE_PC__)
- * #define __EIND__  0x3C
+ * #define __EIND__ 0x3C
  * #endif
  *
  * The interrupts will have been disabled during the call to portSAVE_CONTEXT()
@@ -371,9 +511,9 @@ extern volatile TCB_t * volatile pxCurrentTCB;
 /*-----------------------------------------------------------*/
 
 /*
- * Perform hardware setup to enable ticks from Watchdog Timer.
+ * Perform hardware setup to enable ticks from relevant Timer.
  */
-static void prvSetupTimerInterrupt( void );
+void prvSetupTimerInterrupt( void );
 /*-----------------------------------------------------------*/
 
 /*
@@ -475,18 +615,55 @@ BaseType_t xPortStartScheduler( void )
 
 void vPortEndScheduler( void )
 {
-    /* It is unlikely that the AVR port will get stopped.  If required simply
-    disable the tick interrupt here. */
+    /* It is unlikely that the ATmega port will get stopped.  If required simply
+     * disable the tick interrupt here. */
 
-        wdt_disable();      /* disable Watchdog Timer */
+    wdt_disable();      /* disable Watchdog Timer */
 }
+/*-----------------------------------------------------------*/
+
+    /*
+     * Choose which delay function to use.
+     * Arduino delay() is a millisecond granularity busy wait, that
+     * that breaks FreeRTOS. So its use is limited to less than one
+     * System Tick (portTICK_PERIOD_MS milliseconds).
+     * FreeRTOS vTaskDelay() is relies on the System Tick which here
+     * has a granularity of portTICK_PERIOD_MS milliseconds (15ms),
+     * with the remainder implemented as an Arduino delay().
+     */
+
+#ifdef delay
+#undef delay
+#endif
+
+extern void delay ( unsigned long ms );
+
+#if defined( portUSE_WDTO )
+void vPortDelay( const uint32_t ms ) __attribute__ ((hot, flatten));
+void vPortDelay( const uint32_t ms )
+{
+    if ( ms < portTICK_PERIOD_MS )
+    {
+        delay( (unsigned long) (ms) );
+    }
+    else
+    {
+        vTaskDelay( (TickType_t) (ms) / portTICK_PERIOD_MS );
+        delay( (unsigned long) (ms - portTICK_PERIOD_MS) % portTICK_PERIOD_MS );
+    }
+}
+#else
+#warning "The user is responsible to provide function `vPortDelay()`"
+#warning "Arduino uses all AVR MCU Timers, so breakage may occur"
+extern void vPortDelay( const uint32_t ms ) __attribute__ ((hot, flatten));
+#endif
 /*-----------------------------------------------------------*/
 
 /*
  * Manual context switch. The first thing we do is save the registers so we
  * can use a naked attribute.
  */
-void vPortYield( void ) __attribute__ ( ( hot, flatten, naked ) );
+void vPortYield( void ) __attribute__ ((hot, flatten, naked));
 void vPortYield( void )
 {
     portSAVE_CONTEXT();
@@ -501,8 +678,8 @@ void vPortYield( void )
  * Manual context switch callable from ISRs. The first thing we do is save
  * the registers so we can use a naked attribute.
  */
-void vPortYieldFromISR(void) __attribute__ ( ( hot, flatten, naked ) );
-void vPortYieldFromISR(void)
+void vPortYieldFromISR( void ) __attribute__ ((hot, flatten, naked));
+void vPortYieldFromISR( void )
 {
     portSAVE_CONTEXT();
     vTaskSwitchContext();
@@ -518,7 +695,7 @@ void vPortYieldFromISR(void)
  * difference from vPortYield() is the tick count is incremented as the
  * call comes from the tick ISR.
  */
-void vPortYieldFromTick( void ) __attribute__ ( ( hot, flatten, naked ) );
+void vPortYieldFromTick( void ) __attribute__ ((hot, flatten, naked));
 void vPortYieldFromTick( void )
 {
     portSAVE_CONTEXT();
@@ -533,6 +710,7 @@ void vPortYieldFromTick( void )
 }
 /*-----------------------------------------------------------*/
 
+#if defined( portUSE_WDTO )
 /*
  * Setup WDT to generate a tick interrupt.
  */
@@ -544,6 +722,12 @@ void prvSetupTimerInterrupt( void )
     /* set up WDT Interrupt (rather than the WDT Reset). */
     wdt_interrupt_enable( portUSE_WDTO );
 }
+
+#else
+#warning "The user is responsible to provide function `prvSetupTimerInterrupt()`"
+extern void prvSetupTimerInterrupt( void );
+#endif
+
 /*-----------------------------------------------------------*/
 
 #if configUSE_PREEMPTION == 1
@@ -581,4 +765,3 @@ void prvSetupTimerInterrupt( void )
         xTaskIncrementTick();
     }
 #endif
-

@@ -1,6 +1,8 @@
 /*
- * FreeRTOS Kernel V10.3.0
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * FreeRTOS Kernel V10.5.1+
+ * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ *
+ * SPDX-License-Identifier: MIT
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -19,18 +21,19 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
- * http://www.FreeRTOS.org
- * http://aws.amazon.com/freertos
+ * https://www.FreeRTOS.org
+ * https://github.com/FreeRTOS
  *
- * 1 tab == 4 spaces!
 */
 
 #ifndef PORTMACRO_H
 #define PORTMACRO_H
 
+/* *INDENT-OFF* */
 #ifdef __cplusplus
-extern "C" {
+    extern "C" {
 #endif
+/* *INDENT-ON* */
 
 /*-----------------------------------------------------------
  * Port specific definitions.
@@ -48,12 +51,14 @@ typedef uint8_t                     StackType_t;
 typedef int8_t                      BaseType_t;
 typedef uint8_t                     UBaseType_t;
 
-#if configUSE_16_BIT_TICKS == 1
+#if configTICK_TYPE_WIDTH_IN_BITS == TICK_TYPE_WIDTH_16_BITS
     typedef uint16_t                TickType_t;
     #define portMAX_DELAY           ( TickType_t ) 0xffff
-#else
+#elif ( configTICK_TYPE_WIDTH_IN_BITS  == TICK_TYPE_WIDTH_32_BITS )
     typedef uint32_t                TickType_t;
     #define portMAX_DELAY           ( TickType_t ) 0xffffffffUL
+#else
+    #error configTICK_TYPE_WIDTH_IN_BITS set to unsupported tick type width.
 #endif
 /*-----------------------------------------------------------*/
 
@@ -80,27 +85,23 @@ typedef uint8_t                     UBaseType_t;
 
 /* Architecture specifics. */
 
-#define sleep_reset()                   do { _SLEEP_CONTROL_REG = 0; } while(0)     /* reset all sleep_mode() configurations. */
+#define sleep_reset()               do { _SLEEP_CONTROL_REG = 0; } while(0)     /* reset all sleep_mode() configurations. */
 
 #define portSTACK_GROWTH            ( -1 )
-
-/* Timing for the scheduler.
- * Watchdog Timer is 128kHz nominal,
- * but 120 kHz at 5V DC and 25 degrees is actually more accurate,
- * from data sheet.
- */
-#define portTICK_PERIOD_MS          ( (TickType_t) _BV( portUSE_WDTO + 4 ) )
-
 #define portBYTE_ALIGNMENT          1
 #define portNOP()                   __asm__ __volatile__ ( "nop" );
 /*-----------------------------------------------------------*/
 
 /* Kernel utilities. */
-extern void vPortYield( void )      __attribute__ ( ( naked ) );
+
+extern void vPortDelay( const uint32_t ms );
+#define portDELAY( ms )             vPortDelay( ms )
+
+extern void vPortYield( void ) __attribute__ ((naked));
 #define portYIELD()                 vPortYield()
 
-extern void vPortYieldFromISR( void )   __attribute__ ( ( naked ) );
-#define portYIELD_FROM_ISR()            vPortYieldFromISR()
+extern void vPortYieldFromISR( void ) __attribute__ ((naked));
+#define portYIELD_FROM_ISR()        vPortYieldFromISR()
 /*-----------------------------------------------------------*/
 
 #if defined(__AVR_3_BYTE_PC__)
@@ -116,17 +117,10 @@ extern void vPortYieldFromISR( void )   __attribute__ ( ( naked ) );
 
 #define portTASK_FUNCTION( vFunction, pvParameters ) void vFunction( void *pvParameters )
 
-/* Tickless idle/low power functionality. */
-#if( configUSE_TICKLESS_IDLE > 0 )
-    #ifndef portSUPPRESS_TICKS_AND_SLEEP
-        extern void vPortSuppressTicksAndSleep(TickType_t xExpectedIdleTime);
-        #define portSUPPRESS_TICKS_AND_SLEEP(xExpectedIdleTime) vPortSuppressTicksAndSleep(xExpectedIdleTime)
-    #endif
-#endif
-
+/* *INDENT-OFF* */
 #ifdef __cplusplus
-}
+    }
 #endif
+/* *INDENT-ON* */
 
 #endif /* PORTMACRO_H */
-

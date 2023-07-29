@@ -13,33 +13,25 @@ My other [AVRfreeRTOS Sourceforge Repository](https://sourceforge.net/projects/a
 
 This library was the genesis of [generalised support for the ATmega platform within FreeRTOS](https://github.com/FreeRTOS/FreeRTOS-Kernel/pull/48).
 
+Over the past few years freeRTOS development has become increasingly 32-bit orientated, with little change or improvement for the 8-bit world. As such I'm treating this FreeRTOS V10.5.x (released May 1 2023) as my LTS release.
+
+
 ## General
 
 FreeRTOS has a multitude of configuration options, which can be specified from within the FreeRTOSConfig.h file.
-To keep commonality with all of the Arduino hardware options, some sensible defaults have been selected.
+To keep commonality with all of the Arduino hardware options, some sensible defaults have been selected. Feel free to change these defaults as you gain experience with FreeRTOS.
 
-The AVR Watchdog Timer is used to generate 15ms time slices, but Tasks that finish before their allocated time will hand execution back to the Scheduler. This does not affect the use of any of the normal Timer functions in Arduino.
+Normally, the AVR Watchdog Timer is used to generate 15ms time slices (Ticks). For applications requiring high precision timing, the Ticks can be sourced from a hardware timer or external clock. See chapter [Scheduler Tick Sources](./doc/tick_sources.md) for the configuration details.
 
-Time slices can be selected from 15ms up to 500ms. Slower time slicing can allow the Arduino MCU to sleep for longer, without the complexity of a Tickless idle.
+Tasks that finish before their allocated time will hand execution back to the Scheduler.
 
-Watchdog period options:
-* `WDTO_15MS`
-* `WDTO_30MS`
-* `WDTO_60MS`
-* `WDTO_120MS`
-* `WDTO_250MS`
-* `WDTO_500MS`
-* `WDTO_1S`
-* `WDTO_2S`
+The Arduino `delay()` function has been redefined to automatically use the FreeRTOS `vTaskDelay()` function when the delay required is one Tick or longer, by setting `configUSE_PORT_DELAY` to `1`, so that simple Arduino example sketches and tutorials work as expected. If you would like to measure a short millisecond delay of less than one Tick, then preferably use [`millis()`](https://www.arduino.cc/reference/en/language/functions/time/millis/) (or with greater granularity use [`micros()`](https://www.arduino.cc/reference/en/language/functions/time/micros/)) to achieve this outcome (for example see [BlinkWithoutDelay](https://docs.arduino.cc/built-in-examples/digital/BlinkWithoutDelay)). However, when the delay requested is less than one Tick then the original Arduino `delay()` function will be automatically selected.
 
-Note that Timer resolution is affected by integer math division and the time slice selected. Trying to measure 50ms, using a 120ms time slice for example, won't work.
+The 8-bit AVR Timer0 has been added as an option for the experienced user. Please examine the source code to figure out how to use it. Reconfiguring Timer0 for FreeRTOS will break Arduino `millis()` and `micros()` though, as these functions rely on Timer0.
 
-Stack for the `loop()` function has been set at 192 bytes. This can be configured by adjusting the `configMINIMAL_STACK_SIZE` parameter. If you have stack overflow issues, just increase it.
-Users should prefer to allocate larger structures, arrays, or buffers using `pvPortMalloc()`, rather than defining them locally on the stack.
+Stack for the `loop()` function has been set at 192 Bytes. This can be configured by adjusting the `configMINIMAL_STACK_SIZE` parameter. If you have stack overflow issues, just increase it. Users should prefer to allocate larger structures, arrays, or buffers using `pvPortMalloc()`, rather than defining them locally on the stack. Ideally you should not use `loop()` for your sketches, and then the stack size can be reduced down to 85 Bytes, saving some valuable memory.
 
-Memory for the heap is allocated by the normal `malloc()` function, wrapped by `pvPortMalloc()`.
-This option has been selected because it is automatically adjusted to use the capabilities of each device.
-Other heap allocation schemes are supported by FreeRTOS, and they can used with additional configuration.
+Memory for the heap is allocated by the normal `malloc()` function, wrapped by `pvPortMalloc()`. This option has been selected because it is automatically adjusted to use the capabilities of each device. Other heap allocation schemes are supported by FreeRTOS, and they can used with some additional configuration.
 
 ## Upgrading
 
@@ -89,3 +81,33 @@ build_flags =
   -DportUSE_WDTO=WDTO_15MS
 ```
 
+### Code of conduct
+
+See the [Code of conduct](https://github.com/feilipu/Arduino_FreeRTOS_Library/blob/master/CODE_OF_CONDUCT.md).
+## Contributors ✨
+
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-6-green.svg?style=flat-square)](#contributors-)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
+
+Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tr>
+    <td align="center"><a href="https://feilipu.me/"><img src="https://avatars.githubusercontent.com/u/3955592" width="100px;" alt=""/><br /><sub><b>Phillip Stevens</b></sub></a><br /><a title="Maintenance">🚧</a><a title="Code">💻</a><a title="Reviewed Pull Requests">👀</a><a title=Documentation">📖</a></td>
+    <td align="center"><a href="https://www.blackleg.es/"><img src="https://avatars.githubusercontent.com/u/4323228" width="100px;" alt=""/><br /><sub><b>Hector Espert</b></sub></a><br /><a title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/Floessie"><img src="https://avatars.githubusercontent.com/u/10133457" width="100px;" alt=""/><br /><sub><b>Floessie</b></sub></a><br /><a title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/Derekduke"><img src="https://avatars.githubusercontent.com/u/30068270" width="100px;" alt=""/><br /><sub><b>Derekduke</b></sub></a><br /><a title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/balaji"><img src="https://avatars.githubusercontent.com/u/29356302" width="100px;" alt=""/><br /><sub><b>Balaji.V</b></sub></a><br /><a title="Code">💻</a><a title=Documentation">📖</a></td>
+    <td align="center"><a href="https://github.com/neboskreb"><img src="https://avatars.githubusercontent.com/u/35344069" width="100px;" alt=""/><br /><sub><b>John Y. Pazekha</b></sub></a><br /><a title="Code">💻</a><a title=Documentation">📖</a></td>
+  </tr>
+</table>
+
+<!-- markdownlint-enable -->
+<!-- prettier-ignore-end -->
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
